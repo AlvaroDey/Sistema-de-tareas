@@ -1,0 +1,848 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'dart:async';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  runApp(
+    ChangeNotifierProvider<ThemeProvider>(
+      create: (context) => ThemeProvider(),
+      builder: (context, child) => const MyApp(),
+    ),
+  );
+}
+
+class ThemeProvider extends ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.light;
+
+  ThemeMode get themeMode => _themeMode;
+
+  void toggleTheme() {
+    _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    notifyListeners();
+  }
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Task Reminder',
+          theme: ThemeData(
+            primarySwatch: Colors.blue,
+            visualDensity: VisualDensity.adaptivePlatformDensity,
+            scaffoldBackgroundColor: const Color(0xFFF0F4C3),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Color(0xFFDCEDC8),
+              foregroundColor: Colors.black87,
+              elevation: 0,
+            ),
+            cardTheme: CardTheme(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              color: const Color(0xFFE6EE9C),
+            ),
+            checkboxTheme: CheckboxThemeData(
+              fillColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
+                if (states.contains(MaterialState.disabled)) {
+                  return null;
+                }
+                if (states.contains(MaterialState.selected)) {
+                  return Colors.blue;
+                }
+                return null;
+              }),
+            ),
+            textTheme: GoogleFonts.robotoTextTheme(
+              Theme.of(context).textTheme,
+            ).apply(bodyColor: Colors.black, displayColor: Colors.black),
+          ),
+          darkTheme: ThemeData.dark().copyWith(
+            scaffoldBackgroundColor: const Color(0xFF333333),
+            appBarTheme: AppBarTheme(
+              backgroundColor: Colors.grey[800],
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            cardTheme: CardTheme(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              color: Colors.grey[700],
+            ),
+            checkboxTheme: CheckboxThemeData(
+              fillColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
+                if (states.contains(MaterialState.disabled)) {
+                  return null;
+                }
+                if (states.contains(MaterialState.selected)) {
+                  return Colors.blue;
+                }
+                return null;
+              }),
+            ),
+            textTheme: GoogleFonts.robotoTextTheme(
+              Theme.of(context).textTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
+            ),
+            listTileTheme: const ListTileThemeData(
+              textColor: Colors.white,
+            ),
+          ),
+          themeMode: themeProvider.themeMode,
+          home: const UsernameInputScreen(),
+        );
+      },
+    );
+  }
+}
+
+class UsernameInputScreen extends StatefulWidget {
+  const UsernameInputScreen({super.key});
+
+  @override
+  State<UsernameInputScreen> createState() => _UsernameInputScreenState();
+}
+
+class _UsernameInputScreenState extends State<UsernameInputScreen> {
+  final _usernameController = TextEditingController();
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              TextField(
+                controller: _usernameController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Enter your username',
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  if (_usernameController.text.isNotEmpty) {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute<dynamic>(
+                        builder: (context) => TaskListScreen(userName: _usernameController.text),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter a username')),
+                    );
+                  }
+                },
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class TaskListScreen extends StatefulWidget {
+  final String userName;
+
+  const TaskListScreen({super.key, required this.userName});
+
+  @override
+  State<TaskListScreen> createState() => _TaskListScreenState();
+}
+
+class _TaskListScreenState extends State<TaskListScreen> with TickerProviderStateMixin {
+  final List<Task> tasks = [
+    Task(title: "Think about tomato macaroni I ate", date: DateTime.now().add(const Duration(seconds: 5)), priority: "Normal"),
+    Task(title: "Eat tomato macaroni", date: DateTime.now().add(const Duration(seconds: 10)), priority: "Normal"),
+    Task(title: "Cook tomato macaroni", date: DateTime.now().add(const Duration(seconds: 15)), priority: "Normal"),
+    Task(title: "Do laundry", date: DateTime.now().add(const Duration(hours: 3)), priority: "Normal"),
+    Task(title: "Walk the dog", date: DateTime.now().add(const Duration(hours: 4)), priority: "High"),
+    Task(title: "Travel to the moon", date: DateTime.now().add(const Duration(days: 5)), priority: "Normal"),
+  ];
+  String currentTime = "";
+  Timer? _timer;
+  int _selectedIndex = 0;
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTime();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _updateTime() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() {
+        currentTime = DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now());
+      });
+    });
+  }
+
+  void _changeUserName() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController(text: widget.userName);
+        return AlertDialog(
+          title: const Text('Change Username'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(labelText: 'Name'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute<dynamic>(
+                    builder: (context) => TaskListScreen(userName: controller.text),
+                  ),
+                );
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _addTask() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AddTaskDialog(
+          onTaskAdded: (task) {
+            setState(() {
+              tasks.add(task);
+            });
+          },
+        );
+      },
+    );
+  }
+
+  void _editTask(Task task) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AddTaskDialog(
+          taskToEdit: task,
+          onTaskAdded: (editedTask) {
+            setState(() {
+              final index = tasks.indexOf(task);
+              if (index != -1) {
+                tasks[index] = editedTask;
+              }
+            });
+          },
+        );
+      },
+    );
+  }
+
+  void _deleteTask(int index) {
+    setState(() {
+      tasks.removeAt(index);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            const CircleAvatar(
+              backgroundImage: NetworkImage("https://www.gstatic.com/flutter-onestack-prototype/genui/example_1.jpg"),
+              radius: 16,
+            ),
+            const SizedBox(width: 8),
+            Text('Task Reminder - ${widget.userName}',
+                style: TextStyle(fontFamily: GoogleFonts.robotoTextTheme().bodyLarge?.fontFamily, color: Theme.of(context).textTheme.bodyLarge?.color)),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    title: const Text('Settings'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          title: const Text('Change Username'),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _changeUserName();
+                          },
+                        ),
+                        ListTile(
+                          title: const Text('Dark/Light Mode'),
+                          trailing: Switch(
+                            value: Provider.of<ThemeProvider>(context).themeMode == ThemeMode.dark,
+                            onChanged: (value) {
+                              Provider.of<ThemeProvider>(context, listen: false).toggleTheme();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(
+                color: Color(0xFFF9F9F9),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const CircleAvatar(
+                    backgroundImage: NetworkImage("https://www.gstatic.com/flutter-onestack-prototype/genui/example_1.jpg"),
+                    radius: 30,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(widget.userName, style: const TextStyle(fontSize: 18, color: Colors.black)),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.wb_sunny_outlined),
+              title: const Text('My Day'),
+              selected: _selectedIndex == 0,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 0;
+                  _tabController.animateTo(0);
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.star_border),
+              title: const Text('Important'),
+              selected: _selectedIndex == 1,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 1;
+                  _tabController.animateTo(1);
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.calendar_month),
+              title: const Text('Planned'),
+              selected: _selectedIndex == 2,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 2;
+                  _tabController.animateTo(2);
+                });
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          TabBar(
+            controller: _tabController,
+            tabs: const [
+              Tab(text: 'My Day'),
+              Tab(text: 'Important'),
+              Tab(text: 'Planned'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                MyDayTab(
+                    tasks: tasks,
+                    onTaskDeleted: _deleteTask,
+                    onTaskTapped: _editTask),
+                ImportantTab(
+                    tasks: tasks,
+                    onTaskDeleted: _deleteTask,
+                    onTaskTapped: _editTask),
+                PlannedTab(tasks: tasks),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: Colors.grey, width: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle_outline, color: Colors.grey),
+                const SizedBox(width: 8),
+                Text("Completed", style: TextStyle(color: Colors.grey,  )),
+                const Spacer(),
+                const Image(image: NetworkImage("https://www.gstatic.com/flutter-onestack-prototype/genui/example_1.jpg"),
+                    height: 24, width: 24),
+              ],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addTask,
+        backgroundColor: Colors.blue,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+}
+
+class MyDayTab extends StatelessWidget {
+  final List<Task> tasks;
+  final Function(int) onTaskDeleted;
+  final Function(Task) onTaskTapped;
+
+  const MyDayTab(
+      {super.key,
+      required this.tasks,
+      required this.onTaskDeleted,
+      required this.onTaskTapped});
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final todayTasks = tasks
+        .where((task) =>
+            task.date.year == today.year &&
+            task.date.month == today.month &&
+            task.date.day == today.day)
+        .toList();
+    todayTasks.sort((a, b) => a.date.compareTo(b.date));
+
+    return ListView.builder(
+      itemCount: todayTasks.length,
+      itemBuilder: (context, index) {
+        final task = todayTasks[index];
+        return GestureDetector(
+          onTap: () => onTaskTapped(task),
+          child: TaskCard(
+            task: task,
+            onDelete: () => onTaskDeleted(tasks.indexOf(task)),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class ImportantTab extends StatelessWidget {
+  final List<Task> tasks;
+  final Function(int) onTaskDeleted;
+  final Function(Task) onTaskTapped;
+
+  const ImportantTab(
+      {super.key,
+      required this.tasks,
+      required this.onTaskDeleted,
+      required this.onTaskTapped});
+
+  @override
+  Widget build(BuildContext context) {
+    final highPriorityTasks =
+        tasks.where((task) => task.priority == 'High').toList();
+    final otherTasks = tasks.where((task) => task.priority != 'High').toList();
+    final sortedTasks = [...highPriorityTasks, ...otherTasks];
+
+    return ListView.builder(
+      itemCount: sortedTasks.length,
+      itemBuilder: (context, index) {
+        final task = sortedTasks[index];
+        return GestureDetector(
+          onTap: () => onTaskTapped(task),
+          child: TaskCard(
+            task: task,
+            onDelete: () => onTaskDeleted(tasks.indexOf(task)),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class PlannedTab extends StatefulWidget {
+  final List<Task> tasks;
+
+  const PlannedTab({super.key, required this.tasks});
+
+  @override
+  State<PlannedTab> createState() => _PlannedTabState();
+}
+
+class _PlannedTabState extends State<PlannedTab> {
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        CalendarDatePicker(
+          initialDate: _focusedDay,
+          firstDate: DateTime.utc(2010, 10, 16),
+          lastDate: DateTime.utc(2030, 3, 14),
+          onDateChanged: (DateTime date) {
+            setState(() {
+              _selectedDay = date;
+              _focusedDay = date;
+            });
+          },
+        ),
+        Expanded(
+          child: _selectedDay != null
+              ? _buildTaskListForSelectedDate()
+              : const Center(child: Text('Select a day to view tasks')),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTaskListForSelectedDate() {
+    final selectedTasks = widget.tasks
+        .where((task) =>
+            task.date.year == _selectedDay!.year &&
+            task.date.month == _selectedDay!.month &&
+            task.date.day == _selectedDay!.day)
+        .toList();
+
+    return ListView.builder(
+      itemCount: selectedTasks.length,
+      itemBuilder: (context, index) {
+        final task = selectedTasks[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  DateFormat('dd/MM/yyyy HH:mm').format(task.date),
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class TaskCard extends StatefulWidget {
+  final Task task;
+  final VoidCallback onDelete;
+
+  const TaskCard({super.key, required this.task, required this.onDelete});
+
+  @override
+  State<TaskCard> createState() => _TaskCardState();
+}
+
+class _TaskCardState extends State<TaskCard> {
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      color: _getPriorityColor(widget.task.priority),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Row(
+          children: [
+            Checkbox(
+              value: widget.task.isCompleted,
+              onChanged: (value) {
+                setState(() {
+                  widget.task.isCompleted = value ?? false;
+                });
+              },
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.task.title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      decoration:
+                          widget.task.isCompleted ? TextDecoration.lineThrough : null,
+                      color: Colors.black,
+                    ),
+                  ),
+                  if (widget.task.description != null &&
+                      widget.task.description!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        widget.task.description!,
+                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                    ),
+                  Row(
+                    children: [
+                      const Text('Tasks', style: TextStyle(color: Colors.black)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.notifications, size: 12, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(DateFormat('HH:mm').format(widget.task.date), style: const TextStyle(color: Colors.black)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.black, size: 28,),
+              onPressed: widget.onDelete,
+            ),
+            IconButton(
+              icon: const Icon(Icons.calendar_today, size: 28, color: Colors.black),
+              onPressed: () {
+                _rescheduleTask(widget.task);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getPriorityColor(String priority) {
+    return switch (priority) {
+      'High' => Colors.red.shade100,
+      'Normal' => Colors.yellow.shade100,
+      'Low' => Colors.green.shade100,
+      _ => Colors.blue.shade100,
+    };
+  }
+
+  void _rescheduleTask(Task task) async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: task.date,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+
+    if (pickedDate != null) {
+      final pickedTime = await showTimePicker(
+        // ignore: use_build_context_synchronously
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(task.date),
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          task.date = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+        });
+      }
+    }
+  }
+}
+
+class AddTaskDialog extends StatefulWidget {
+  final Function(Task) onTaskAdded;
+  final Task? taskToEdit;
+
+  const AddTaskDialog({super.key, required this.onTaskAdded, this.taskToEdit});
+
+  @override
+  State<AddTaskDialog> createState() => _AddTaskDialogState();
+}
+
+class _AddTaskDialogState extends State<AddTaskDialog> {
+  late TextEditingController _titleController;
+  late TextEditingController _descriptionController;
+  late DateTime _selectedDate;
+  String? _priority;
+  final _priorities = ['Low', 'Normal', 'High'];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.taskToEdit?.title ?? '');
+    _descriptionController = TextEditingController(text: widget.taskToEdit?.description ?? '');
+    _selectedDate = widget.taskToEdit?.date ?? DateTime.now();
+    _priority = widget.taskToEdit?.priority ?? 'Normal';
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  void _saveTask() {
+    if (_titleController.text.trim().isEmpty) return;
+    final task = Task(
+      title: _titleController.text.trim(),
+      date: _selectedDate,
+      priority: _priority!,
+      description: _descriptionController.text.trim(),
+    );
+    widget.onTaskAdded(task);
+    Navigator.pop(context);
+  }
+
+  Future<void> _selectDateAndTime(BuildContext context) async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+
+    if (pickedDate != null) {
+      final pickedTime = await showTimePicker(
+        // ignore: use_build_context_synchronously
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_selectedDate),
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          _selectedDate = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.taskToEdit == null ? 'New Task' : 'Edit Task'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'Title')),
+            TextField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(labelText: 'Description (optional)'),
+              maxLines: 3,
+            ),
+            ListTile(
+              title: Text('Date and Time: ${DateFormat('dd/MM/yyyy HH:mm').format(_selectedDate)}'),
+              trailing: const Icon(Icons.calendar_today, size: 28, color: Colors.black),
+              onTap: () => _selectDateAndTime(context),
+            ),
+            DropdownButtonFormField<String>(
+              value: _priority,
+              items: _priorities.map<DropdownMenuItem<String>>((String p) {
+                return DropdownMenuItem<String>(
+                  value: p,
+                  child: Text(p),
+                );
+              }).toList(),
+              onChanged: (String? value) => setState(() => _priority = value),
+              decoration: const InputDecoration(labelText: 'Priority'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        ElevatedButton(onPressed: _saveTask, child: const Text('Save')),
+      ],
+    );
+  }
+}
+
+class Task {
+  String title;
+  DateTime date;
+  String priority;
+  bool isCompleted;
+  String? description;
+
+  Task({required this.title, required this.date, required this.priority, this.isCompleted = false, this.description});
+}
