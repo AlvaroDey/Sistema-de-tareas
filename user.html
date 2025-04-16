@@ -1,0 +1,87 @@
+4. user_name_confirmation_wrapper.dart (Rama feature/user-onboarding)
+
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:task_reminder_app/task_list_screen.dart';
+
+class UserNameConfirmationWrapper extends StatefulWidget {
+  final String? initialUserName;
+  final Function(String) onUserNameConfirmed;
+  final Widget child;
+
+  const UserNameConfirmationWrapper({super.key,
+    required this.initialUserName,
+    required this.onUserNameConfirmed,
+    required this.child,
+  });
+
+  @override
+  State<UserNameConfirmationWrapper> createState() => _UserNameConfirmationWrapperState();
+}
+
+class _UserNameConfirmationWrapperState extends State<UserNameConfirmationWrapper> {
+  String? _userName;
+  bool _isDialogShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _userName = widget.initialUserName;
+    if (_userName == null && !_isDialogShown) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showUserNameConfirmationDialog(context);
+      });
+    }
+  }
+
+  Future<void> _showUserNameConfirmationDialog(BuildContext context) async {
+    _isDialogShown = true;
+    String tempName = '';
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Confirmar Nombre de Usuario'),
+          content: TextField(
+            decoration: const InputDecoration(labelText: 'Nombre'),
+            onChanged: (value) => tempName = value,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (tempName.isNotEmpty) {
+                  _saveUserName(tempName);
+                  widget.onUserNameConfirmed(tempName);
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+    _isDialogShown = false;
+  }
+
+  Future<void> _saveUserName(String name) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userName', name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
+  }
+}
+
+Rol en Gitflow: La lógica para la confirmación inicial del nombre de usuario
+ se desarrollaría en una rama feature/user-onboarding.
+ Después de completarse, se fusionaría a develop.
